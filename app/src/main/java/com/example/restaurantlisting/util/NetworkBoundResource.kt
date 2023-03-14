@@ -1,10 +1,31 @@
 package com.example.restaurantlisting.util
 
+import android.app.DownloadManager.Query
 import android.app.DownloadManager.Request
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.*
 
-//fun <ResultType,RequestType> networkBoundresource(
-//    query: () -> Flow<ResultType>,
-//    fetch : suspend () -> RequestType,
-//    saveFetchResult : suspend (RequestType)
-//)
+inline fun <ResultType, RequestType> networkBoundresource(
+    crossinline query: () -> Flow<ResultType>,
+    crossinline fetch: suspend () -> RequestType,
+    crossinline saveFetchResult: suspend (RequestType) -> Unit,
+    crossinline shouldFetch: (ResultType) -> Boolean = { true }
+) = flow {
+
+    val data = query().first()
+
+
+    val flow = if (shouldFetch(data)) {
+        emit(Resource.Loading(data))
+
+        try {
+            saveFetchResult(fetch())
+            query().map { Resource.Success(it) }
+        } catch (throwable: Throwable) {
+            query().map { Resource.Error(throwable, it) }
+        }
+    } else {
+        query().map { Resource.Success(it) }
+    }
+
+    emitAll(flow)
+}
